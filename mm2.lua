@@ -1,230 +1,165 @@
-repeat wait() until game:IsLoaded()
-
-local Library = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/Drifter0507/Shamrock/main/MainLibrary", true))()
-
+-- MM2 Ultimate Hub v7 (Специальная версия для Delta)
 local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
+local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local UIS = game:GetService("UserInputService")
-local VirtualUser = game:GetService("VirtualUser")
+local Workspace = game:GetService("Workspace")
 
-local Client = Players.LocalPlayer
-local Camera = Workspace.CurrentCamera
-local Mouse = Client:GetMouse()
+_G.Settings = {
+    AutoGun = false,
+    ESP = false,
+    AntiFling = false,
+    FlingAura = false,
+    UnderMap = false,
+    WallJump = false,
+    AutoFarm = false,
+    SelectedTarget = nil
+}
 
-local Character, RootPart, Humanoid
+-- Инициализация Fluent (Исправлено под Delta - без лишних аргументов)
+local Fluent = loadstring(game:HttpGet("https://githubusercontent.com"))()
 
-getgenv().WS = 16
-getgenv().JP = 50
-getgenv().FlySpeed = 60
-getgenv().KnifeRange = 25
-getgenv().GunAccuracy = 25
-getgenv().Whitelisted = {}
+local Window = Fluent:CreateWindow({
+    Title = "MM2 Ultimate Hub v7",
+    SubTitle = "Delta Edition",
+    Size = UDim2.fromOffset(580, 520),
+})
 
-local function SetCharVars()
-    Character = Client.Character or Client.CharacterAdded:Wait()
-    Humanoid = Character:WaitForChild("Humanoid")
-    RootPart = Character:WaitForChild("HumanoidRootPart")
-    Humanoid.WalkSpeed = getgenv().WS
-    Humanoid.JumpPower = getgenv().JP
+local Tabs = {
+    Main = Window:AddTab({ Title = "Основные", Icon = "sliders" }),
+    Combat = Window:AddTab({ Title = "Бой", Icon = "zap" }),
+    Tele = Window:AddTab({ Title = "Телепорт", Icon = "move" }),
+    Farm = Window:AddTab({ Title = "Фарм", Icon = "coin" })
+}
+
+local function getRoot()
+    local char = LocalPlayer.Character
+    return char and char:FindFirstChild("HumanoidRootPart")
 end
-SetCharVars()
-Client.CharacterAdded:Connect(SetCharVars)
 
--- ==================== UI ====================
-local Window = Library:CreateWindow({Title = "My MM2 Script"})
-local Tab1 = Window:CreateTab({Title = "Main"})
-local Tab2 = Window:CreateTab({Title = "World"})
-local Tab3 = Window:CreateTab({Title = "Combat"})
-local Tab4 = Window:CreateTab({Title = "Fling"})
+-- ==================== ЛОГИКА ЧИТА ====================
 
--- ==================== MAIN ====================
-local MainSection = Tab1:CreateSection({Title = "Client"})
-
-MainSection:CreateToggle({Title = "CTRL + Click TP", Default = false, Callback = function(s) getgenv().ClickTP = s end})
-Mouse.Button1Down:Connect(function()
-    if not (UIS:IsKeyDown(Enum.KeyCode.LeftControl) and getgenv().ClickTP) then return end
-    if Mouse.Target then RootPart.CFrame = CFrame.new(Mouse.Hit.p + Vector3.new(0,3,0)) end
-end)
-
-MainSection:CreateSlider({Title = "WalkSpeed", Min = 16, Max = 200, Default = 16, Callback = function(v) getgenv().WS = v; if Humanoid then Humanoid.WalkSpeed = v end end})
-MainSection:CreateSlider({Title = "JumpPower", Min = 50, Max = 200, Default = 50, Callback = function(v) getgenv().JP = v; if Humanoid then Humanoid.JumpPower = v end end})
-
--- Fly
-local flying = false
-local bv, bav
-MainSection:CreateToggle({Title = "Fly", Default = false, Callback = function(s)
-    getgenv().Flying = s
-    if s then
-        flying = true
-        Humanoid.PlatformStand = true
-        bv = Instance.new("BodyVelocity", RootPart)
-        bav = Instance.new("BodyAngularVelocity", RootPart)
-        bv.MaxForce = Vector3.new(1e5,1e5,1e5)
-        bav.MaxTorque = Vector3.new(1e5,1e5,1e5)
-    else
-        flying = false
-        if bv then bv:Destroy() end
-        if bav then bav:Destroy() end
-        Humanoid.PlatformStand = false
-    end
-end})
-MainSection:CreateSlider({Title = "Fly Speed", Min = 20, Max = 150, Default = 60, Callback = function(v) getgenv().FlySpeed = v end})
-
-RunService.Heartbeat:Connect(function(step)
-    if flying and RootPart then
-        local move = Vector3.new()
-        local cf = Camera.CFrame
-        if UIS:IsKeyDown(Enum.KeyCode.W) then move += cf.LookVector end
-        if UIS:IsKeyDown(Enum.KeyCode.S) then move -= cf.LookVector end
-        if UIS:IsKeyDown(Enum.KeyCode.A) then move -= cf.RightVector end
-        if UIS:IsKeyDown(Enum.KeyCode.D) then move += cf.RightVector end
-        if move.Magnitude > 0 then
-            bv.Velocity = move.Unit * getgenv().FlySpeed
-        else
-            bv.Velocity = Vector3.new()
-        end
-    end
-end)
-
-MainSection:CreateButton({Title = "Godmode", Callback = function()
-    pcall(function()
-        local hum = Character:FindFirstChild("Humanoid")
-        if hum then
-            hum.Name = "boop"
-            local new = hum:Clone()
-            new.Parent = Character
-            new.Name = "Humanoid"
-            hum:Destroy()
-            Camera.CameraSubject = new
-        end
-    end)
-end})
-
--- ==================== AUTOFARM ПЛАВНЫЙ ====================
-local AutoSection = Tab2:CreateSection({Title = "Autofarm"})
-
-AutoSection:CreateToggle({Title = "Autofarm Coins (Плавный)", Default = false, Callback = function(state)
-    getgenv().Autofarm = state
-    while getgenv().Autofarm do
-        task.wait()
-        local container = Workspace:FindFirstChild("CoinContainer", true)
-        if container and Client.PlayerGui.MainGUI.Game.CashBag.Visible then
-            local coin = container:FindFirstChild("Coin_Server")
-            if coin then
-                local target = coin.Position - Vector3.new(0, 3, 0)
-                local dir = (target - RootPart.Position)
-                local dist = dir.Magnitude
-                if dist > 4 then
-                    RootPart.Velocity = dir.Unit * 120
-                else
-                    RootPart.CFrame = CFrame.new(target)
-                end
+-- ESP На игроков
+RunService.RenderStepped:Connect(function()
+    if not _G.Settings.ESP then 
+        for _, p in pairs(Players:GetPlayers()) do
+            if p.Character and p.Character:FindFirstChild("MM2ESP") then
+                p.Character.MM2ESP:Destroy()
             end
         end
+        return 
+    end
+    
+    for _, p in pairs(Players:GetPlayers()) do
+        if p == LocalPlayer or not p.Character then continue end
+        local hl = p.Character:FindFirstChild("MM2ESP") or Instance.new("Highlight")
+        hl.Name = "MM2ESP"
+        hl.FillTransparency = 0.4
+        hl.OutlineTransparency = 0
+        hl.Parent = p.Character
+        
+        if p.Backpack:FindFirstChild("Knife") or p.Character:FindFirstChild("Knife") then
+            hl.FillColor = Color3.fromRGB(255, 0, 0)
+        elseif p.Backpack:FindFirstChild("Gun") or p.Character:FindFirstChild("Gun") then
+            hl.FillColor = Color3.fromRGB(0, 100, 255)
+        else
+            hl.FillColor = Color3.fromRGB(0, 255, 0)
+        end
+    end
+end)
+
+-- Авто-подбор пушки
+task.spawn(function()
+    while task.wait(0.1) do
+        if _G.Settings.AutoGun then
+            local drop = Workspace:FindFirstChild("GunDrop")
+            local root = getRoot()
+            if drop and root then root.CFrame = drop.CFrame end
+        end
+    end
+end)
+
+-- Анти-Флинг
+RunService.Stepped:Connect(function()
+    local root = getRoot()
+    if not root then return end
+    if _G.Settings.AntiFling and LocalPlayer.Character then
+        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") then part.CanCollide = false end
+        end
+    end
+end)
+
+-- ==================== ИНТЕРФЕЙС ТАБОВ ====================
+
+Tabs.Main:AddToggle("Gun", {Title = "Авто GunDrop", Default = false}):OnChanged(function(v) _G.Settings.AutoGun = v end)
+Tabs.Main:AddToggle("ESP", {Title = "ESP игроков", Default = false}):OnChanged(function(v) _G.Settings.ESP = v end)
+Tabs.Main:AddToggle("AntiFling", {Title = "Анти-Флинг", Default = false}):OnChanged(function(v) _G.Settings.AntiFling = v end)
+
+-- Телепорты
+local dropdown = Tabs.Tele:AddDropdown("Target", {Title = "Выбрать цель", Values = {}, Multi = false})
+
+local function updateDropdown()
+    local list = {}
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer then table.insert(list, p.Name) end
+    end
+    dropdown:SetValues(list)
+end
+Players.PlayerAdded:Connect(updateDropdown)
+Players.PlayerRemoving:Connect(updateDropdown)
+updateDropdown()
+
+dropdown:OnChanged(function(v) _G.Settings.SelectedTarget = v end)
+
+Tabs.Tele:AddButton({Title = "Телепорт к выбранному", Callback = function()
+    if not _G.Settings.SelectedTarget then return end
+    local target = Players:FindFirstChild(_G.Settings.SelectedTarget)
+    local root = getRoot()
+    if target and target.Character and root then
+        local tRoot = target.Character:FindFirstChild("HumanoidRootPart")
+        if tRoot then root.CFrame = tRoot.CFrame + Vector3.new(0, 3, 0) end
     end
 end})
 
--- ==================== TELEPORT + ESP ====================
-local PlayersList = {}
-for _, p in ipairs(Players:GetPlayers()) do if p ~= Client then table.insert(PlayersList, p.Name) end end
-Players.PlayerAdded:Connect(function(p) if p ~= Client then table.insert(PlayersList, p.Name) end end)
-
-Tab2:CreateDropdown({Text = "Teleport to Player", Array = PlayersList, Callback = function(name)
-    local target = Players:FindFirstChild(name)
-    if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
-        RootPart.CFrame = target.Character.HumanoidRootPart.CFrame + Vector3.new(0,5,0)
+-- Бой
+Tabs.Combat:AddButton({Title = "Kill All (За Мардера)", Callback = function()
+    local knife = LocalPlayer.Character:FindFirstChild("Knife") or LocalPlayer.Backpack:FindFirstChild("Knife")
+    local root = getRoot()
+    if not knife or not root then return end
+    
+    local oldCFrame = root.CFrame
+    knife.Parent = LocalPlayer.Character
+    task.wait(0.2)
+    
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            root.CFrame = p.Character.HumanoidRootPart.CFrame
+            task.wait(0.1)
+            knife:Activate()
+        end
     end
+    root.CFrame = oldCFrame
 end})
 
--- ESP (из твоего старого скрипта)
-local folder = Instance.new("Folder", game.CoreGui)
-folder.Name = "ESP Holder"
-
-local function AddBillboard(player)
-    -- ... (полный код ESP из твоего первого скрипта можно вставить сюда)
-end
-
-for _,player in pairs(Players:GetPlayers()) do
-    if player ~= Client then coroutine.wrap(AddBillboard)(player) end
-end
-Players.PlayerAdded:Connect(AddBillboard)
-
--- ==================== COMBAT ====================
-local CombatSection = Tab3:CreateSection({Title = "Combat"})
-
--- Kill Aura + Kill All
-local lastAttack = tick()
-RunService.Heartbeat:Connect(function()
-    if (tick() - lastAttack) < 0.1 then return end
-    pcall(function()
-        local Knife = Client.Backpack:FindFirstChild("Knife") or Character:FindFirstChild("Knife")
-        if Knife and getgenv().KnifeAura then
-            for _, v in ipairs(Players:GetPlayers()) do
-                if v ~= Client and v.Character and not table.find(getgenv().Whitelisted, v.Name) then
-                    local EnemyRoot = v.Character.HumanoidRootPart
-                    local Distance = (EnemyRoot.Position - RootPart.Position).Magnitude
-                    if Distance <= getgenv().KnifeRange then
-                        VirtualUser:ClickButton1(Vector2.new())
-                        firetouchinterest(EnemyRoot, Knife.Handle, 1)
-                        firetouchinterest(EnemyRoot, Knife.Handle, 0)
-                        lastAttack = tick()
+-- Фарм монет
+Tabs.Farm:AddToggle("Farm", {Title = "АвтоФарм монет", Default = false}):OnChanged(function(v)
+    _G.Settings.AutoFarm = v
+    if v then
+        task.spawn(function()
+            while _G.Settings.AutoFarm do
+                task.wait(0.1)
+                local root = getRoot()
+                if not root then continue end
+                for _, obj in pairs(Workspace:GetDescendants()) do
+                    if obj.Name:find("Coin") and obj:IsA("BasePart") then
+                        local direction = (obj.Position - root.Position).Unit
+                        root.Velocity = direction * 60
+                        break
                     end
                 end
             end
-        end
-    end)
+        end)
+    end
 end)
 
-CombatSection:CreateToggle({Title = "Kill Aura", Default = false, Callback = function(s) getgenv().KnifeAura = s end})
-CombatSection:CreateSlider({Title = "Knife Range", Min = 5, Max = 100, Default = 25, Callback = function(v) getgenv().KnifeRange = v end})
-
-CombatSection:CreateKeybind({Title = "Kill All (K)", Default = "K", Callback = function()
-    local Knife = Client.Backpack:FindFirstChild("Knife") or Character:FindFirstChild("Knife")
-    if Knife then
-        Humanoid:EquipTool(Knife)
-        for _, v in ipairs(Players:GetPlayers()) do
-            if v ~= Client and v.Character and not table.find(getgenv().Whitelisted, v.Name) then
-                local EnemyRoot = v.Character.HumanoidRootPart
-                VirtualUser:ClickButton1(Vector2.new())
-                firetouchinterest(EnemyRoot, Knife.Handle, 1)
-                firetouchinterest(EnemyRoot, Knife.Handle, 0)
-            end
-        end
-    end
-end})
-
--- Silent Aim
-CombatSection:CreateToggle({Title = "Silent Aim (Sheriff)", Default = false, Callback = function(s) getgenv().SheriffAim = s end})
-CombatSection:CreateSlider({Title = "Accuracy", Min = 0, Max = 100, Default = 25, Callback = function(v) getgenv().GunAccuracy = v end})
-
--- Auto Take Gun
-CombatSection:CreateButton({Title = "Auto Take Gun", Callback = function()
-    local gundrop = Workspace:FindFirstChild("GunDrop")
-    if gundrop then RootPart.CFrame = gundrop.CFrame end
-end})
-
--- ==================== FLING ====================
-local FlingSection = Tab4:CreateSection({Title = "Fling"})
-
-FlingSection:CreateToggle({Title = "Fling Aura", Default = false, Callback = function(s) getgenv().FlingAura = s end})
-FlingSection:CreateToggle({Title = "Anti Fling", Default = true, Callback = function(s) getgenv().AntiFling = s end})
-
-RunService.Heartbeat:Connect(function()
-    if getgenv().AntiFling and RootPart then
-        RootPart.Velocity = RootPart.Velocity * 0.15
-    end
-    if getgenv().FlingAura then
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr ~= Client and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and not table.find(getgenv().Whitelisted, plr.Name) then
-                local root = plr.Character.HumanoidRootPart
-                if (root.Position - RootPart.Position).Magnitude < 35 then
-                    root.Velocity = Vector3.new(math.random(-600,600), 800, math.random(-600,600))
-                end
-            end
-        end
-    end
-end})
-
-print("✅ Полный персональный скрипт загружен!")
+Fluent:Notify({Title = "Успешно", Content = "Хаб полностью готов для Delta!", Duration = 5})
