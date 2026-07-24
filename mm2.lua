@@ -2,22 +2,32 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
 
 getgenv().Config = {
-    AntiAFK = true, AntiCheatBypass = true, RoleScanner = true,
-    RadioBypass = false, ESP = false, CoinFarm = false, 
-    XPFarm = false, SilentAim = false, GunTP = false,
-    Noclip = false, FlingAura = false
+    AntiAFK = true,
+    AntiCheatBypass = true,
+    RoleScanner = true,
+    RadioBypass = false,
+    ESP = false,
+    CoinFarm = false, 
+    XPFarm = false,
+    SilentAim = false,
+    GunTP = false,
+    Noclip = false,
+    FlingAura = false
 }
 
 if getgenv().Config.AntiAFK then
     LocalPlayer.Idled:Connect(function()
-        game:GetService("VirtualUser"):CaptureController()
-        game:GetService("VirtualUser"):ClickButton2(Vector2.new(0,0))
+        local vu = game:GetService("VirtualUser")
+        vu:CaptureController()
+        vu:ClickButton2(Vector2.new(0,0))
     end)
 end
+
 if getgenv().Config.AntiCheatBypass then
     game:GetService("ScriptContext").Error:Connect(function() return true end)
 end
@@ -27,10 +37,13 @@ local PlayerList = {}
 local TargetIndex = 1
 
 local function UpdatePlayerList()
-    PlayerList = {}
+    local list = {}
     for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer then table.insert(PlayerList, p) end
+        if p ~= LocalPlayer then 
+            table.insert(list, p) 
+        end
     end
+    PlayerList = list
 end
 
 task.spawn(function()
@@ -38,8 +51,12 @@ task.spawn(function()
         UpdatePlayerList()
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= LocalPlayer and p.Character then
-                if p.Character:FindFirstChild("Knife") or p:FindFirstChild("Backpack"):FindFirstChild("Knife") then Roles.Murderer = p
-                elseif p.Character:FindFirstChild("Gun") or p:FindFirstChild("Backpack"):FindFirstChild("Gun") then Roles.Sheriff = p end
+                local bp = p:FindFirstChild("Backpack")
+                if p.Character:FindFirstChild("Knife") or (bp and bp:FindFirstChild("Knife")) then 
+                    Roles.Murderer = p
+                elseif p.Character:FindFirstChild("Gun") or (bp and bp:FindFirstChild("Gun")) then 
+                    Roles.Sheriff = p 
+                end
             end
         end
     end
@@ -136,7 +153,10 @@ local function UpdateTargetLabel()
     if #PlayerList > 0 then
         if TargetIndex > #PlayerList then TargetIndex = 1 end
         if TargetIndex < 1 then TargetIndex = #PlayerList end
-        TargetLabel.Text = "Target: " .. PlayerList[TargetIndex].Name
+        local tPlayer = PlayerList[TargetIndex]
+        if tPlayer then
+            TargetLabel.Text = "Target: " .. tPlayer.Name
+        end
     else
         TargetLabel.Text = "Target: No Players"
     end
@@ -154,10 +174,10 @@ TpBtn.Font = Enum.Font.SourceSansBold
 TpBtn.TextSize = 15
 
 TpBtn.MouseButton1Click:Connect(function()
-    if #PlayerList > 0 and PlayerList[TargetIndex] and PlayerList[TargetIndex].Character then
-        local targetRoot = PlayerList[TargetIndex].Character:FindFirstChild("HumanoidRootPart")
-        if targetRoot and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            LocalPlayer.Character.HumanoidRootPart.CFrame = targetRoot.CFrame * CFrame.new(0, 0, 2)
+    if #PlayerList > 0 and PlayerList[TargetIndex] then
+        local p = PlayerList[TargetIndex]
+        if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            LocalPlayer.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 2)
         end
     end
 end)
@@ -171,22 +191,28 @@ KillAllBtn.Font = Enum.Font.SourceSansBold
 KillAllBtn.TextSize = 15
 
 KillAllBtn.MouseButton1Click:Connect(function()
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
     local knife = LocalPlayer.Character:FindFirstChild("Knife") or LocalPlayer.Backpack:FindFirstChild("Knife")
     if not knife then return end
     LocalPlayer.Character.Humanoid:EquipTool(knife)
     local orig = LocalPlayer.Character.HumanoidRootPart.CFrame
     for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character.Humanoid.Health > 0 then
-            LocalPlayer.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 1)
-            task.wait(0.05)
-            knife:Activate()
+        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            local hum = p.Character:FindFirstChildOfClass("Humanoid")
+            if hum and hum.Health > 0 then
+                LocalPlayer.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 1)
+                task.wait(0.05)
+                knife:Activate()
+            end
         end
     end
     LocalPlayer.Character.HumanoidRootPart.CFrame = orig
 end)
 
-game:GetService("UserInputService").InputBegan:Connect(function(i, p)
-    if not p and i.KeyCode == Enum.KeyCode.LeftControl then MainFrame.Visible = not MainFrame.Visible end
+UserInputService.InputBegan:Connect(function(i, p)
+    if not p and i.KeyCode == Enum.KeyCode.LeftControl then 
+        MainFrame.Visible = not MainFrame.Visible 
+    end
 end)
 
 RunService.RenderStepped:Connect(function()
@@ -198,16 +224,28 @@ RunService.RenderStepped:Connect(function()
     end
     if getgenv().Config.ESP then
         for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and p.Character and not p.Character:FindFirstChild("Highlight") then
-                local hl = Instance.new("Highlight", p.Character)
-                hl.FillColor = (p == Roles.Murderer and Color3.fromRGB(255,0,0)) or (p == Roles.Sheriff and Color3.fromRGB(0,0,255)) or Color3.fromRGB(0,255,0)
-                hl.FillTransparency = 0.5
+            if p ~= LocalPlayer and p.Character then
+                local hl = p.Character:FindFirstChild("Highlight")
+                if not hl then
+                    hl = Instance.new("Highlight", p.Character)
+                    hl.FillTransparency = 0.5
+                end
+                if p == Roles.Murderer then
+                    hl.FillColor = Color3.fromRGB(255,0,0)
+                elseif p == Roles.Sheriff then
+                    hl.FillColor = Color3.fromRGB(0,0,255)
+                else
+                    hl.FillColor = Color3.fromRGB(0,255,0)
+                end
             end
         end
     end
     if getgenv().Config.RadioBypass then
         for _, v in ipairs(Workspace:GetDescendants()) do
-            if v:IsA("Sound") and (v.Name == "Radio" or v.Name == "Audio") then v.Volume = 2 v.Muted = false end
+            if v:IsA("Sound") and (v.Name == "Radio" or v.Name == "Audio") then 
+                v.Volume = 2 
+                v.Muted = false 
+            end
         end
     end
 end)
@@ -219,42 +257,60 @@ task.spawn(function()
             local root = LocalPlayer.Character.HumanoidRootPart
             local c = Workspace:FindFirstChild("CoinContainer", true) or Workspace:FindFirstChild("Normal", true)
             if c then
+                local foundCoin = false
                 for _, coin in ipairs(c:GetDescendants()) do
                     if coin:IsA("TouchTransmitter") and coin.Parent then
+                        foundCoin = true
                         local coinPart = coin.Parent
-                        local targetCFrame = coinPart.CFrame * CFrame.new(0, -4.5, 0)
-                        local distance = (root.Position - targetCFrame.Position).Magnitude
-                        local speed = 25
-                        local duration = distance / speed
-                        
-                        local info = TweenInfo.new(duration, Enum.EasingStyle.Linear)
-                        currentTween = TweenService:Create(root, info, {CFrame = targetCFrame})
-                        currentTween:Play()
-                        currentTween.Completed:Wait()
-                        
-                        firetouchinterest(root, coinPart, 0)
-                        firetouchinterest(root, coinPart, 1)
-                        task.wait(math.random(0, 1))
-                        break
+local targetCFrame = coinPart.CFrame * CFrame.new(0, -4.5, 0)
+local distance = (root.Position - targetCFrame.Position).Magnitude
+local speed = 25
+local duration = distance / speed
+
+local info = TweenInfo.new(duration, Enum.EasingStyle.Linear)
+
+currentTween = TweenService:Create(root, info, {
+    CFrame = targetCFrame
+})
+
+currentTween:Play()
+currentTween.Completed:Wait()
+
+firetouchinterest(root, coinPart, 0)
+firetouchinterest(root, coinPart, 1)
+
+task.wait(math.random(0, 1))
+
+break
                     end
                 end
+
+                if not foundCoin and currentTween then
+                    currentTween:Cancel()
+                end
             end
-elseif getgenv().Config.XPFarm
-    and LocalPlayer.Character
-    and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
 
-    LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(0, 7500, 0)
+        elseif getgenv().Config.XPFarm
+            and LocalPlayer.Character
+            and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
 
-    if LocalPlayer.Character:FindFirstChild("Humanoid") then
-        LocalPlayer.Character.Humanoid.PlatformStand = true
+            if currentTween then
+                currentTween:Cancel()
+            end
+
+            LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(0, 7500, 0)
+
+            local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+
+            if hum then
+                hum.PlatformStand = true
+            end
+
+        elseif currentTween then
+            currentTween:Cancel()
+            currentTween = nil
+        end
     end
-
-elseif currentTween then
-    currentTween:Cancel()
-end
-
-end
-end
 end)
 
 task.spawn(function()
@@ -265,11 +321,15 @@ task.spawn(function()
 
             local root = LocalPlayer.Character.HumanoidRootPart
 
-            local bam = Instance.new("BodyAngularVelocity")
-            bam.Name = "FlingForce"
-            bam.AngularVelocity = Vector3.new(0, 99999, 0)
-            bam.MaxTorque = Vector3.new(0, 99999, 0)
-            bam.Parent = root
+            local bam = root:FindFirstChild("FlingForce")
+
+            if not bam then
+                bam = Instance.new("BodyAngularVelocity")
+                bam.Name = "FlingForce"
+                bam.AngularVelocity = Vector3.new(0, 99999, 0)
+                bam.MaxTorque = Vector3.new(0, 99999, 0)
+                bam.Parent = root
+            end
 
             for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
                 if part:IsA("BasePart") then
@@ -277,16 +337,20 @@ task.spawn(function()
                 end
             end
 
-            task.wait(0.1)
+        elseif LocalPlayer.Character
+            and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
 
-            if root:FindFirstChild("FlingForce") then
-                root.FlingForce:Destroy()
+            local bam = LocalPlayer.Character.HumanoidRootPart:FindFirstChild("FlingForce")
+
+            if bam then
+                bam:Destroy()
             end
         end
     end
 end)
 
 RunService.RenderStepped:Connect(function()
+
     local drop =
         Workspace:FindFirstChild("GunDrop")
         or Workspace:FindFirstChild("DroppedGun", true)
@@ -320,8 +384,12 @@ OldNamecall = hookmetamethod(game, "__namecall", function(Self, ...)
         and Roles.Murderer
         and Roles.Murderer.Character then
 
-        Args = Roles.Murderer.Character.Head.Position
-        return Self.FireServer(Self, unpack(Args))
+        local head = Roles.Murderer.Character:FindFirstChild("Head")
+
+        if head then
+            Args[1] = head.Position
+            return Self.FireServer(Self, unpack(Args))
+        end
     end
 
     return OldNamecall(Self, ...)
