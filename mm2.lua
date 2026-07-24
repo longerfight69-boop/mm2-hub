@@ -1,115 +1,195 @@
--- Полная очистка прошлых запусков перед стартом
-if _G.CoinFarmLoop then _G.CoinFarmLoop = false end
-if _G.FarmConnection then _G.FarmConnection:Disconnect() end
-task.wait(0.15)
+repeat wait() until game:IsLoaded()
 
--- Включаем скрипт сразу при инжекте (без нажатия кнопок)
-_G.CoinFarmLoop = true 
-
-local MIN_DIST_TO_MURDER = 30 -- Безопасное расстояние от убийцы
-local BASE_SPEED = 25
-local MAX_SPEED = 75
-local ACCELERATION = 4.0
-
+-- Загрузка чистой библиотеки интерфейса
+local Library = loadstring(game:HttpGetAsync("https://githubusercontent.com", true))()
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
-local LocalPlayer = Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UIS = game:GetService("UserInputService")
+local VirtualUser = game:GetService("VirtualUser")
+local SoundService = game:GetService("SoundService")
 
-local currentSpeed = BASE_SPEED
+local Client = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
+local Character, RootPart, Humanoid
 
-local function getHRP()
-    local char = LocalPlayer.Character
-    return char and char:FindFirstChild("HumanoidRootPart")
+getgenv().KnifeRange = 25
+getgenv().GunAccuracy = 25
+getgenv().Whitelisted = {}
+getgenv().RadioBypass = false
+
+local function SetCharVars()
+    Character = Client.Character or Client.CharacterAdded:Wait()
+    Humanoid = Character:WaitForChild("Humanoid")
+    RootPart = Character:WaitForChild("HumanoidRootPart")
 end
+SetCharVars()
+Client.CharacterAdded:Connect(SetCharVars)
 
--- 1. Абсолютный Noclip (пролет через текстуры)
-_G.FarmConnection = RunService.Stepped:Connect(function()
-    if _G.CoinFarmLoop and LocalPlayer.Character then
-        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
-            if part:IsA("BasePart") then part.CanCollide = false end
-        end
-    end
-end)
+-- ==================== UI WINDOW ====================
+local Window = Library:CreateWindow({Title = "MM2 Custom Script (Safe)"})
+local Tab1 = Window:CreateTab({Title = "Main & Radio"})
+local Tab2 = Window:CreateTab({Title = "World"})
+local Tab3 = Window:CreateTab({Title = "Combat"})
+local Tab4 = Window:CreateTab({Title = "Fling"})
 
--- 2. Поиск позиции текущего Мардера
-local function getMurdererPosition()
-    for _, p in pairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer and p.Character then
-            if p.Backpack:FindFirstChild("Knife") or p.Character:FindFirstChild("Knife") then
-                local mRoot = p.Character:FindFirstChild("HumanoidRootPart")
-                if mRoot then return mRoot.Position end
+-- ==================== MAIN & RADIO ====================
+local MainSection = Tab1:CreateSection({Title = "Radio Settings"})
+
+-- Функция байпаса радио в лобби
+MainSection:CreateToggle({Title = "Bypass Radio Mute", Default = false, Callback = function(state)
+    getgenv().RadioBypass = state
+end})
+
+-- Поток контроля громкости радио (предотвращает принудительный мут от игры в лобби)
+RunService.Heartbeat:Connect(function()
+    if getgenv().RadioBypass then
+        pcall(function()
+            -- Принудительно возвращаем громкость радио-объектам на сервере/клиенте
+            local radiosFolder = SoundService:FindFirstChild("Radios") or ReplicatedStorage:FindFirstChild("Radios")
+            if radiosFolder then
+                if radiosFolder:IsA("SoundGroup") and radiosFolder.Volume == 0 then
+                    radiosFolder.Volume = 1
+                end
+                for _, sound in ipairs(radiosFolder:GetDescendants()) do
+                    if sound:IsA("Sound") and sound.Volume == 0 then
+                        sound.Volume = 1
+                    end
+                end
             end
-        end
-    end
-    return nil
-end
-
--- 3. Супер-быстрый цикл полета без задержек (каждый кадр)
-task.spawn(function()
-    print("🟢 АВТОФАРМ ЗАПУЩЕН НА DELTA!")
-    
-    while _G.CoinFarmLoop do
-        RunService.Heartbeat:Wait()
-        local root = getHRP()
-        
-        if root then
-            local closestCoin = nil
-            local shortestDistance = math.huge
-            local murderPos = getMurdererPosition()
-            
-            -- Получаем список монет на карте
-            local container = Workspace:FindFirstChild("CoinContainer", true)
-            local targets = container and container:GetChildren() or Workspace:GetDescendants()
-            
-            for _, obj in pairs(targets) do
-                local isCoin = (obj.Name == "Coin_Server") or (obj.Name:find("Coin") and obj:IsA("BasePart") and obj.Transparency < 1)
-                
-                if isCoin and obj.Parent then
-                    local distToCoin = (obj.Position - root.Position).Magnitude
-                    
-                    -- Проверка: нет ли рядом Мардера
-                    local isSafe = true
-                    if murderPos then
-                        local distToMurder = (obj.Position - murderPos).Magnitude
-                        if distToMurder < MIN_DIST_TO_MURDER then
-                            isSafe = false -- Рядом убийца, монету брать нельзя
+            -- Проверка радио у самих персонажей в лобби
+            for _, plyr in ipairs(Players:GetPlayers()) do
+                if plyr.Character and plyr.Character:FindFirstChild("HumanoidRootPart") then
+                    for _, item in ipairs(plyr.Character.HumanoidRootPart:GetChildren()) do
+                        if item:IsA("Sound") and item.Volume == 0 then
+                            item.Volume = 1
                         end
                     end
-                    
-                    if isSafe and distToCoin < shortestDistance then
-                        shortestDistance = distToCoin
-                        closestCoin = obj
-                    end
                 end
             end
-            
-            -- Логика движения к безопасной цели
-            if closestCoin and closestCoin.Parent then
-                local targetPos = closestCoin.Position
-                local direction = (targetPos - root.Position).Unit
-                
-                -- Постепенное нарастание скорости
-                if currentSpeed < MAX_SPEED then
-                    currentSpeed = currentSpeed + ACCELERATION
+        end)
+    end
+end)
+
+-- ==================== WORLD (AUTOFARM / TP / ESP) ====================
+local AutoSection = Tab2:CreateSection({Title = "Autofarm & Teleport"})
+
+AutoSection:CreateToggle({Title = "Autofarm Coins (Плавный)", Default = false, Callback = function(state)
+    getgenv().Autofarm = state
+    while getgenv().Autofarm do
+        task.wait()
+        local container = Workspace:FindFirstChild("CoinContainer", true)
+        if container and Client.PlayerGui.MainGUI.Game.CashBag.Visible then
+            local coin = container:FindFirstChild("Coin_Server")
+            if coin then
+                local target = coin.Position - Vector3.new(0, 3, 0)
+                local dir = (target - RootPart.Position)
+                local dist = dir.Magnitude
+                if dist > 4 then
+                    RootPart.Velocity = dir.Unit * 120
+                else
+                    RootPart.CFrame = CFrame.new(target)
                 end
-                
-                root.Velocity = direction * currentSpeed
-                
-                -- Микро-телепорт для моментального подбора
-                if (targetPos - root.Position).Magnitude < 4 then
-                    root.CFrame = CFrame.new(targetPos)
-                end
-            else
-                -- Если монет нет или они все караулятся Мардером — останавливаемся
-                root.Velocity = Vector3.new(0, 0, 0)
-                currentSpeed = BASE_SPEED
             end
         end
     end
-    
-    -- Полная остановка при выключении скрипта
-    local root = getHRP()
-    if root then root.Velocity = Vector3.new(0, 0, 0) end
-    print("🔴 АВТОФАРМ ОСТАНОВЛЕН")
+end})
+
+local PlayersList = {}
+for _, p in ipairs(Players:GetPlayers()) do if p ~= Client then table.insert(PlayersList, p.Name) end end
+Players.PlayerAdded:Connect(function(p) if p ~= Client then table.insert(PlayersList, p.Name) end end)
+
+Tab2:CreateDropdown({Text = "Teleport to Player", Array = PlayersList, Callback = function(name)
+    local target = Players:FindFirstChild(name)
+    if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+        RootPart.CFrame = target.Character.HumanoidRootPart.CFrame + Vector3.new(0,5,0)
+    end
+end})
+
+-- ESP Holder
+local folder = Instance.new("Folder", game.CoreGui)
+folder.Name = "ESP Holder"
+
+local function AddBillboard(player)
+    -- Сюда при необходимости можно встроить отрисовку боксов
+end
+for _, player in pairs(Players:GetPlayers()) do
+    if player ~= Client then coroutine.wrap(AddBillboard)(player) end
+end
+Players.PlayerAdded:Connect(AddBillboard)
+
+-- ==================== COMBAT ====================
+local CombatSection = Tab3:CreateSection({Title = "Combat"})
+
+local lastAttack = tick()
+RunService.Heartbeat:Connect(function()
+    if (tick() - lastAttack) < 0.1 then return end
+    pcall(function()
+        local Knife = Client.Backpack:FindFirstChild("Knife") or Character:FindFirstChild("Knife")
+        if Knife and getgenv().KnifeAura then
+            for _, v in ipairs(Players:GetPlayers()) do
+                if v ~= Client and v.Character and not table.find(getgenv().Whitelisted, v.Name) then
+                    local EnemyRoot = v.Character.HumanoidRootPart
+                    local Distance = (EnemyRoot.Position - RootPart.Position).Magnitude
+                    if Distance <= getgenv().KnifeRange then
+                        VirtualUser:ClickButton1(Vector2.new())
+                        firetouchinterest(EnemyRoot, Knife.Handle, 1)
+                        firetouchinterest(EnemyRoot, Knife.Handle, 0)
+                        lastAttack = tick()
+                    end
+                end
+            end
+        end
+    end)
 end)
+
+CombatSection:CreateToggle({Title = "Kill Aura", Default = false, Callback = function(s) getgenv().KnifeAura = s end})
+CombatSection:CreateSlider({Title = "Knife Range", Min = 5, Max = 100, Default = 25, Callback = function(v) getgenv().KnifeRange = v end})
+
+CombatSection:CreateKeybind({Title = "Kill All (K)", Default = "K", Callback = function()
+    local Knife = Client.Backpack:FindFirstChild("Knife") or Character:FindFirstChild("Knife")
+    if Knife then
+        Humanoid:EquipTool(Knife)
+        for _, v in ipairs(Players:GetPlayers()) do
+            if v ~= Client and v.Character and not table.find(getgenv().Whitelisted, v.Name) then
+                local EnemyRoot = v.Character.HumanoidRootPart
+                VirtualUser:ClickButton1(Vector2.new())
+                firetouchinterest(EnemyRoot, Knife.Handle, 1)
+                firetouchinterest(EnemyRoot, Knife.Handle, 0)
+            end
+        end
+    end
+end})
+
+CombatSection:CreateToggle({Title = "Silent Aim (Sheriff)", Default = false, Callback = function(s) getgenv().SheriffAim = s end})
+CombatSection:CreateSlider({Title = "Accuracy", Min = 0, Max = 100, Default = 25, Callback = function(v) getgenv().GunAccuracy = v end})
+
+CombatSection:CreateButton({Title = "Auto Take Gun", Callback = function()
+    local gundrop = Workspace:FindFirstChild("GunDrop")
+    if gundrop then RootPart.CFrame = gundrop.CFrame end
+end})
+
+-- ==================== FLING ====================
+local FlingSection = Tab4:CreateSection({Title = "Fling"})
+
+FlingSection:CreateToggle({Title = "Fling Aura", Default = false, Callback = function(s) getgenv().FlingAura = s end})
+FlingSection:CreateToggle({Title = "Anti Fling", Default = true, Callback = function(s) getgenv().AntiFling = s end})
+
+RunService.Heartbeat:Connect(function()
+    if getgenv().AntiFling and RootPart then
+        RootPart.Velocity = RootPart.Velocity * 0.15
+    end
+    if getgenv().FlingAura then
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= Client and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and not table.find(getgenv().Whitelisted, plr.Name) then
+                local root = plr.Character.HumanoidRootPart
+                if (root.Position - RootPart.Position).Magnitude < 35 then
+                    root.Velocity = Vector3.new(math.random(-600,600), 800, math.random(-600,600))
+                end
+            end
+        end
+    end
+end)
+
+print("✅ Кастомный безопасный MM2 скрипт успешно загружен!")
