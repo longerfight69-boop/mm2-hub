@@ -251,67 +251,98 @@ RunService.RenderStepped:Connect(function()
 end)
 
 local currentTween = nil
+
 task.spawn(function()
-    while task.wait(0.2) do
+    while true do
+        task.wait(0.2)
+        
         if getgenv().Config.CoinFarm and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
             local root = LocalPlayer.Character.HumanoidRootPart
             local c = Workspace:FindFirstChild("CoinContainer", true) or Workspace:FindFirstChild("Normal", true)
+            
             if c then
                 local foundCoin = false
+                
                 for _, coin in ipairs(c:GetDescendants()) do
+                    if not getgenv().Config.CoinFarm then break end
+                    
                     if coin:IsA("TouchTransmitter") and coin.Parent then
                         foundCoin = true
                         local coinPart = coin.Parent
-local targetCFrame = coinPart.CFrame * CFrame.new(0, -4.5, 0)
-local distance = (root.Position - targetCFrame.Position).Magnitude
-local speed = 25
-local duration = distance / speed
+                        
+                        local targetCFrame = coinPart.CFrame * CFrame.new(0, -4.5, 0)
+                        local distance = (root.Position - targetCFrame.Position).Magnitude
+                        local speed = 25
+                        local duration = distance / speed
 
-local info = TweenInfo.new(duration, Enum.EasingStyle.Linear)
+                        local info = TweenInfo.new(duration, Enum.EasingStyle.Linear)
 
-currentTween = TweenService:Create(root, info, {
-    CFrame = targetCFrame
-})
+                        if currentTween then currentTween:Cancel() end
 
-currentTween:Play()
-currentTween.Completed:Wait()
+                        currentTween = TweenService:Create(root, info, {
+                            CFrame = targetCFrame
+                        })
 
-firetouchinterest(root, coinPart, 0)
-firetouchinterest(root, coinPart, 1)
+                        currentTween:Play()
+                        
+                        local completed = false
+                        local connection
+                        connection = currentTween.Completed:Connect(function()
+                            completed = true
+                        end)
+                        
+                        while not completed and getgenv().Config.CoinFarm do
+                            task.wait()
+                        end
+                        
+                        if connection then connection:Disconnect() end
 
-task.wait(math.random(0, 1))
+                        if not getgenv().Config.CoinFarm then 
+                            if currentTween then currentTween:Cancel() currentTween = nil end
+                            break 
+                        end
 
-break
+                        firetouchinterest(root, coinPart, 0)
+                        firetouchinterest(root, coinPart, 1)
+
+                        task.wait(math.random(0, 1))
+                        break
                     end
                 end
 
                 if not foundCoin and currentTween then
                     currentTween:Cancel()
+                    currentTween = nil
                 end
             end
 
-        elseif getgenv().Config.XPFarm
-            and LocalPlayer.Character
-            and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-
+        elseif getgenv().Config.XPFarm and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
             if currentTween then
                 currentTween:Cancel()
+                currentTween = nil
             end
 
             LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(0, 7500, 0)
-
             local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-
             if hum then
                 hum.PlatformStand = true
             end
 
-        elseif currentTween then
-            currentTween:Cancel()
-            currentTween = nil
+        else
+            if currentTween then
+                currentTween:Cancel()
+                currentTween = nil
+            end
+            if LocalPlayer.Character then
+                local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                if hum and hum.PlatformStand then
+                    hum.PlatformStand = false
+                end
+            end
         end
     end
 end)
+
 
 task.spawn(function()
     while task.wait() do
