@@ -1,4 +1,4 @@
--- MM2 Ultimate Hub v8 - Улучшенная
+-- MM2 Ultimate Hub v9 - На основе реальных хабов
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
@@ -18,8 +18,8 @@ _G.Settings = {
 local Fluent = loadstring(game:HttpGet("https://github.com/ActualMasterOogway/Fluent-Renewed/releases/latest/download/Fluent.luau", true))()
 
 local Window = Fluent:CreateWindow({
-    Title = "MM2 Ultimate Hub v8",
-    SubTitle = "Улучшено по другим хабам",
+    Title = "MM2 Ultimate Hub v9",
+    SubTitle = "На основе реальных хабов",
     Size = UDim2.fromOffset(580, 520),
 })
 
@@ -35,16 +35,19 @@ local function getRoot()
     return char and char:FindFirstChild("HumanoidRootPart")
 end
 
--- ESP
+-- ESP (как в хороших хабах)
 RunService.RenderStepped:Connect(function()
     if not _G.Settings.ESP then return end
     for _, p in pairs(Players:GetPlayers()) do
         if p == LocalPlayer or not p.Character then continue end
-        local hl = p.Character:FindFirstChild("MM2ESP") or Instance.new("Highlight")
-        hl.Name = "MM2ESP"
-        hl.FillTransparency = 0.35
-        hl.OutlineTransparency = 0
-        hl.Parent = p.Character
+        local hl = p.Character:FindFirstChild("MM2ESP")
+        if not hl then
+            hl = Instance.new("Highlight")
+            hl.Name = "MM2ESP"
+            hl.FillTransparency = 0.4
+            hl.OutlineTransparency = 0
+            hl.Parent = p.Character
+        end
         if p.Backpack:FindFirstChild("Knife") or p.Character:FindFirstChild("Knife") then
             hl.FillColor = Color3.fromRGB(255,0,0)
         elseif p.Backpack:FindFirstChild("Gun") or p.Character:FindFirstChild("Gun") then
@@ -62,20 +65,23 @@ task.spawn(function()
             local drop = Workspace:FindFirstChild("GunDrop")
             if drop then
                 local root = getRoot()
-                if root then root.CFrame = drop.CFrame + Vector3.new(0,3,0) end
+                if root then root.CFrame = drop.CFrame end
             end
         end
     end
 end)
 
--- Fling Aura (стабильнее)
+-- Anti Fling + Fling Aura
 RunService.Stepped:Connect(function()
     local root = getRoot()
     if not root then return end
 
     if _G.Settings.AntiFling then
         for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
-            if part:IsA("BasePart") then part.CanCollide = false end
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+                part.Velocity = Vector3.new(0,0,0)
+            end
         end
     end
 
@@ -86,8 +92,8 @@ RunService.Stepped:Connect(function()
             if tRoot then
                 local dist = (root.Position - tRoot.Position).Magnitude
                 if dist < 8 then
-                    root.RotVelocity = Vector3.new(0, 750000, 0)
-                    root.Velocity = Vector3.new(0, 30, 0)
+                    root.RotVelocity = Vector3.new(0, 999999, 0)
+                    root.Velocity = Vector3.new(0, 40, 0)
                 end
             end
         end
@@ -127,13 +133,6 @@ end})
 
 Tabs.Tele:AddToggle("Under", {Title = "Уйти под карту", Default = false}):OnChanged(function(v)
     _G.Settings.UnderMap = v
-    task.spawn(function()
-        while _G.Settings.UnderMap do
-            local root = getRoot()
-            if root then root.CFrame = root.CFrame * CFrame.new(0, -1, 0) end
-            task.wait(0.2)
-        end
-    end)
 end)
 
 -- Combat
@@ -162,15 +161,15 @@ Tabs.Combat:AddButton({Title = "Убить Мардера (Шериф)", Callbac
     if not gun or not root then return end
     local old = root.CFrame
     gun.Parent = LocalPlayer.Character
-    task.wait(0.12)
+    task.wait(0.1)
     for _, p in Players:GetPlayers() do
         if p ~= LocalPlayer and (p.Backpack:FindFirstChild("Knife") or p.Character:FindFirstChild("Knife")) then
             local t = p.Character.HumanoidRootPart
-            root.CFrame = CFrame.lookAt(t.Position + Vector3.new(0,4,0), t.Position)
-            task.wait(0.06)
+            root.CFrame = CFrame.lookAt(t.Position + Vector3.new(0,5,0), t.Position)
+            task.wait(0.05)
             gun:Activate()
-            task.wait(0.1)
-            gun:Activate() -- двойной для надёжности
+            task.wait(0.08)
+            gun:Activate()
             break
         end
     end
@@ -179,18 +178,18 @@ Tabs.Combat:AddButton({Title = "Убить Мардера (Шериф)", Callbac
 end})
 
 -- AutoFarm (плавный)
-Tabs.Farm:AddToggle("Farm", {Title = "АвтоФарм (плавный)", Default = false}):OnChanged(function(v)
+Tabs.Farm:AddToggle("Farm", {Title = "АвтоФарм", Default = false}):OnChanged(function(v)
     _G.Settings.AutoFarm = v
     if v then
         task.spawn(function()
             while _G.Settings.AutoFarm do
-                task.wait(0.12)
+                task.wait(0.1)
                 for _, obj in pairs(Workspace:GetDescendants()) do
                     if obj.Name:find("Coin") and obj:IsA("BasePart") then
                         local root = getRoot()
                         if root then
                             local dir = (obj.Position - root.Position).Unit
-                            root.Velocity = dir * 55   -- плавно
+                            root.Velocity = dir * 70
                         end
                     end
                 end
@@ -199,4 +198,4 @@ Tabs.Farm:AddToggle("Farm", {Title = "АвтоФарм (плавный)", Defaul
     end
 end)
 
-Fluent:Notify({Title = "v8 Загружен", Content = "Улучшено по другим хабам", Duration = 6})
+Fluent:Notify({Title = "v9 Загружен", Content = "На основе других хабов", Duration = 6})
