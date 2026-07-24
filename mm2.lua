@@ -1,4 +1,4 @@
--- MM2 Ultimate Hub - Full Version (Optimized for Vega X)
+-- MM2 Ultimate Hub - Full Version (Vega X)
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
@@ -10,14 +10,13 @@ _G.ESPEnabled = false
 _G.FlingAura = false
 _G.UnderMap = false
 _G.WallJumpEnabled = false
-_G.RadioBypass = false
 _G.SelectedTarget = nil
 
 local Fluent = loadstring(game:HttpGet("https://github.com/ActualMasterOogway/Fluent-Renewed/releases/latest/download/Fluent.luau", true))()
 
 local Window = Fluent:CreateWindow({
-    Title = "MM2 Ultimate Custom Hub",
-    SubTitle = "Optimized for Vega X",
+    Title = "MM2 Ultimate Hub",
+    SubTitle = "Vega X Edition",
     Size = UDim2.fromOffset(560, 460),
 })
 
@@ -80,8 +79,8 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- Основные функции (UI)
-Tabs.Main:AddToggle("Gun", {Title = "Авто-подбор пистолета", Default = false}):OnChanged(function(v)
+-- Основные
+Tabs.Main:AddToggle("Gun", {Title = "Авто GunDrop", Default = false}):OnChanged(function(v)
     _G.AutoGunPickup = v
     if v then task.spawn(function()
         while _G.AutoGunPickup do task.wait(0.05)
@@ -114,19 +113,16 @@ updateDropdown()
 PlayerDropdown:OnChanged(function(val)
     _G.SelectedTarget = val
     local target = Players:FindFirstChild(val)
-    if target and target.Character then
+    if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
         local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if root and target.Character:FindFirstChild("HumanoidRootPart") then
-            root.CFrame = target.Character.HumanoidRootPart.CFrame
-        end
+        if root then root.CFrame = target.Character.HumanoidRootPart.CFrame end
     end
 end)
 
 Tabs.Teleport:AddToggle("Under", {Title = "Уйти под карту", Default = false}):OnChanged(function(v)
     local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if root then
-        if v then root.CFrame = root.CFrame * CFrame.new(0,-32,0)
-        else root.CFrame = root.CFrame * CFrame.new(0,32,0) end
+        root.CFrame = root.CFrame * CFrame.new(0, v and -32 or 32, 0)
     end
 end)
 
@@ -134,7 +130,6 @@ end)
 Tabs.Combat:AddToggle("Aura", {Title = "Fling Aura", Default = false}):OnChanged(function(v) _G.FlingAura = v end)
 
 Tabs.Combat:AddButton({Title = "Kill All (Мардер)", Callback = function()
-    -- (код кнопки Kill All из предыдущего сообщения)
     local knife = LocalPlayer.Character:FindFirstChild("Knife") or LocalPlayer.Backpack:FindFirstChild("Knife")
     local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not knife or not root then return end
@@ -152,7 +147,6 @@ Tabs.Combat:AddButton({Title = "Kill All (Мардер)", Callback = function()
 end})
 
 Tabs.Combat:AddButton({Title = "Убить Мардера (Шериф)", Callback = function()
-    -- (код кнопки Kill Murderer)
     local gun = LocalPlayer.Character:FindFirstChild("Gun") or LocalPlayer.Backpack:FindFirstChild("Gun")
     local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not gun or not root then return end
@@ -171,4 +165,4 @@ Tabs.Combat:AddButton({Title = "Убить Мардера (Шериф)", Callbac
     root.CFrame = old
 end})
 
-Fluent:Notify({Title = "Загружено!", Content = "Полный хаб готов", Duration = 5})
+Fluent:Notify({Title = "MM2 Hub", Content = "Успешно загружен!", Duration = 5})
