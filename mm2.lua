@@ -1,18 +1,17 @@
--- [[ MM2 Optimized Clean Menu ]] --
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
+local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
 
--- Конфигурация функций
 getgenv().Config = {
     AntiAFK = true, AntiCheatBypass = true, RoleScanner = true,
     RadioBypass = false, ESP = false, CoinFarm = false, 
-    XPFarm = false, SilentAim = false, GunESP = false, GunTP = false
+    XPFarm = false, SilentAim = false, GunTP = false,
+    Noclip = false, FlingAura = false
 }
 
--- Инициализация системных функций (Anti-AFK и Обход ошибок)
 if getgenv().Config.AntiAFK then
     LocalPlayer.Idled:Connect(function()
         game:GetService("VirtualUser"):CaptureController()
@@ -23,11 +22,20 @@ if getgenv().Config.AntiCheatBypass then
     game:GetService("ScriptContext").Error:Connect(function() return true end)
 end
 
--- Сканер ролей
 local Roles = {Murderer = nil, Sheriff = nil}
+local PlayerList = {}
+local TargetIndex = 1
+
+local function UpdatePlayerList()
+    PlayerList = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer then table.insert(PlayerList, p) end
+    end
+end
+
 task.spawn(function()
     while task.wait(0.5) do
-        if not getgenv().Config.RoleScanner then os.exit() end
+        UpdatePlayerList()
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= LocalPlayer and p.Character then
                 if p.Character:FindFirstChild("Knife") or p:FindFirstChild("Backpack"):FindFirstChild("Knife") then Roles.Murderer = p
@@ -37,53 +45,49 @@ task.spawn(function()
     end
 end)
 
--- Создание удобного интерфейса (Мини-окно)
 local ScreenGui = Instance.new("ScreenGui", CoreGui)
-ScreenGui.Name = "MM2_SimpleMenu"
+ScreenGui.Name = "MM2_AdvancedMenu"
 
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 380, 0, 420)
-MainFrame.Position = UDim2.new(0.05, 0, 0.2, 0)
-MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.Size = UDim2.new(0, 390, 0, 460)
+MainFrame.Position = UDim2.new(0.05, 0, 0.15, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
-MainFrame.Draggable = true -- Можно перетаскивать мышкой
+MainFrame.Draggable = true
 
--- Заголовок
 local Title = Instance.new("TextLabel", MainFrame)
-Title.Size = UDim2.new(1, 0, 0, 35)
-Title.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-Title.Text = "  MM2 UTILITY CONTROLLER (L-CTRL to Hide)"
+Title.Size = UDim2.new(1, 0, 0, 45)
+Title.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+Title.Text = "  MM2 UTILITY V2 (L-CTRL to Hide)"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Font = Enum.Font.SourceSansBold
-Title.TextSize = 14
+Title.TextSize = 16
 
 local Container = Instance.new("ScrollingFrame", MainFrame)
-Container.Size = UDim2.new(1, -10, 1, -45)
-Container.Position = UDim2.new(0, 5, 0, 40)
+Container.Size = UDim2.new(1, -10, 1, -55)
+Container.Position = UDim2.new(0, 5, 0, 50)
 Container.BackgroundTransparency = 1
-Container.CanvasSize = UDim2.new(0, 0, 0, 550)
+Container.CanvasSize = UDim2.new(0, 0, 0, 600)
 Container.ScrollBarThickness = 4
 
 local UIList = Instance.new("UIListLayout", Container)
 UIList.SortOrder = Enum.SortOrder.LayoutOrder
-UIList.Padding = UDim.new(0, 4)
+UIList.Padding = UDim.new(0, 5)
 
--- Функция создания красивой, понятной кнопки-переключателя
-local function CreateToggle(name, configKey, categoryName)
+local function CreateToggle(name, configKey, category)
     local Btn = Instance.new("TextButton", Container)
-    Btn.Size = UDim2.new(1, -5, 0, 32)
-    Btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    Btn.Size = UDim2.new(1, -5, 0, 34)
+    Btn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
     Btn.BorderSizePixel = 0
     Btn.Font = Enum.Font.SourceSans
-    Btn.TextSize = 16
+    Btn.TextSize = 15
     
     local function updateText()
         local status = getgenv().Config[configKey] and "[ ON ]" or "[ OFF ]"
-        local color = getgenv().Config[configKey] and " #00FF00" or " #FF3333"
-        Btn.Text = string.format("  %s: %s %s", categoryName, name, status)
-        Btn.TextColor3 = getgenv().Config[configKey] and Color3.fromRGB(150, 255, 150) or Color3.fromRGB(200, 200, 200)
+        Btn.Text = string.format("  [%s] %s %s", category, name, status)
+        Btn.TextColor3 = getgenv().Config[configKey] and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(220, 220, 220)
     end
     
     Btn.MouseButton1Click:Connect(function()
@@ -93,55 +97,105 @@ local function CreateToggle(name, configKey, categoryName)
     updateText()
 end
 
--- Кнопка для моментального убийства (Действие, а не переключатель)
-local function CreateAction(name, func, categoryName)
-    local Btn = Instance.new("TextButton", Container)
-    Btn.Size = UDim2.new(1, -5, 0, 32)
-    Btn.BackgroundColor3 = Color3.fromRGB(55, 35, 35)
-    Btn.BorderSizePixel = 0
-    Btn.Text = string.format("  ⚡ %s: %s", categoryName, name)
-    Btn.TextColor3 = Color3.fromRGB(255, 150, 150)
-    Btn.Font = Enum.Font.SourceSansBold
-    Btn.TextSize = 16
-    Btn.MouseButton1Click:Connect(func)
-end
-
--- Наполнение интерфейса кнопками (По вкладкам)
 CreateToggle("Bypass Radio Audio", "RadioBypass", "MAIN")
-CreateToggle("Player ESP (Colors)", "ESP", "WORLD")
-CreateToggle("Coin Autofarm (Underfloor)", "CoinFarm", "WORLD")
-CreateToggle("XP Safe AFK", "XPFarm", "WORLD")
-CreateToggle("Silent Aim for Sheriff", "SilentAim", "COMBAT")
-CreateToggle("Gun Drop ESP", "GunESP", "COMBAT")
-CreateToggle("Instant Gun TP & Return", "GunTP", "COMBAT")
+CreateToggle("Player ESP", "ESP", "WORLD")
+CreateToggle("Smooth Coin Farm (Anti-Ban)", "CoinFarm", "WORLD")
+CreateToggle("Noclip (Walk Through Walls)", "Noclip", "WORLD")
+CreateToggle("XP Safe Flying", "XPFarm", "WORLD")
+CreateToggle("Active Fling Aura", "FlingAura", "COMBAT")
+CreateToggle("Silent Aim (Sheriff)", "SilentAim", "COMBAT")
+CreateToggle("Instant Gun Pick & Return", "GunTP", "COMBAT")
 
--- Функция массового убийства сервера
-local function KillServer()
-    local knife = LocalPlayer.Character:FindFirstChild("Knife") or LocalPlayer.Backpack:FindFirstChild("Knife")
-    if not knife then return end
-    LocalPlayer.Character.Humanoid:EquipTool(knife)
-    local origCFrame = LocalPlayer.Character.HumanoidRootPart.CFrame
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character.Humanoid.Health > 0 then
-            LocalPlayer.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 1)
-            task.wait(0.04)
-            knife:Activate()
-        end
+local TargetFrame = Instance.new("Frame", Container)
+TargetFrame.Size = UDim2.new(1, -5, 0, 40)
+TargetFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+TargetFrame.BorderSizePixel = 0
+
+local PrevBtn = Instance.new("TextButton", TargetFrame)
+PrevBtn.Size = UDim2.new(0, 40, 1, 0)
+PrevBtn.Text = "<"
+PrevBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+PrevBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+local NextBtn = Instance.new("TextButton", TargetFrame)
+NextBtn.Size = UDim2.new(0, 40, 1, 0)
+NextBtn.Position = UDim2.new(1, -40, 0, 0)
+NextBtn.Text = ">"
+NextBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+NextBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+local TargetLabel = Instance.new("TextLabel", TargetFrame)
+TargetLabel.Size = UDim2.new(1, -80, 1, 0)
+TargetLabel.Position = UDim2.new(0, 40, 0, 0)
+TargetLabel.BackgroundTransparency = 1
+TargetLabel.Text = "Target: None"
+TargetLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TargetLabel.Font = Enum.Font.SourceSansBold
+
+local function UpdateTargetLabel()
+    if #PlayerList > 0 then
+        if TargetIndex > #PlayerList then TargetIndex = 1 end
+        if TargetIndex < 1 then TargetIndex = #PlayerList end
+        TargetLabel.Text = "Target: " .. PlayerList[TargetIndex].Name
+    else
+        TargetLabel.Text = "Target: No Players"
     end
-    LocalPlayer.Character.HumanoidRootPart.CFrame = origCFrame
 end
-CreateAction("KILL ALL SERVER", KillServer, "COMBAT")
 
--- Бинд на кнопку скрытия меню (Left Control)
-game:GetService("UserInputService").InputBegan:Connect(function(input, processed)
-    if not processed and input.KeyCode == Enum.KeyCode.LeftControl then
-        MainFrame.Visible = not MainFrame.Visible
+PrevBtn.MouseButton1Click:Connect(function() TargetIndex = TargetIndex - 1 UpdateTargetLabel() end)
+NextBtn.MouseButton1Click:Connect(function() TargetIndex = TargetIndex + 1 UpdateTargetLabel() end)
+
+local TpBtn = Instance.new("TextButton", Container)
+TpBtn.Size = UDim2.new(1, -5, 0, 36)
+TpBtn.BackgroundColor3 = Color3.fromRGB(45, 65, 45)
+TpBtn.Text = "⚡ TELEPORT TO TARGET"
+TpBtn.TextColor3 = Color3.fromRGB(150, 255, 150)
+TpBtn.Font = Enum.Font.SourceSansBold
+TpBtn.TextSize = 15
+
+TpBtn.MouseButton1Click:Connect(function()
+    if #PlayerList > 0 and PlayerList[TargetIndex] and PlayerList[TargetIndex].Character then
+        local targetRoot = PlayerList[TargetIndex].Character:FindFirstChild("HumanoidRootPart")
+        if targetRoot and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            LocalPlayer.Character.HumanoidRootPart.CFrame = targetRoot.CFrame * CFrame.new(0, 0, 2)
+        end
     end
 end)
 
--- Логика за кулисами (ESP, Радио, Фамы)
+local KillAllBtn = Instance.new("TextButton", Container)
+KillAllBtn.Size = UDim2.new(1, -5, 0, 36)
+KillAllBtn.BackgroundColor3 = Color3.fromRGB(70, 35, 35)
+KillAllBtn.Text = "☠️ KILL ALL SERVER (As Murderer)"
+KillAllBtn.TextColor3 = Color3.fromRGB(255, 150, 150)
+KillAllBtn.Font = Enum.Font.SourceSansBold
+KillAllBtn.TextSize = 15
+
+KillAllBtn.MouseButton1Click:Connect(function()
+    local knife = LocalPlayer.Character:FindFirstChild("Knife") or LocalPlayer.Backpack:FindFirstChild("Knife")
+    if not knife then return end
+    LocalPlayer.Character.Humanoid:EquipTool(knife)
+    local orig = LocalPlayer.Character.HumanoidRootPart.CFrame
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character.Humanoid.Health > 0 then
+            LocalPlayer.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 1)
+            task.wait(0.05)
+            knife:Activate()
+        end
+    end
+    LocalPlayer.Character.HumanoidRootPart.CFrame = orig
+end)
+
+game:GetService("UserInputService").InputBegan:Connect(function(i, p)
+    if not p and i.KeyCode == Enum.KeyCode.LeftControl then MainFrame.Visible = not MainFrame.Visible end
+end)
+
 RunService.RenderStepped:Connect(function()
-    -- ESP Логика
+    UpdateTargetLabel()
+    if getgenv().Config.Noclip and LocalPlayer.Character then
+        for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") then part.CanCollide = false end
+        end
+    end
     if getgenv().Config.ESP then
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= LocalPlayer and p.Character and not p.Character:FindFirstChild("Highlight") then
@@ -151,7 +205,6 @@ RunService.RenderStepped:Connect(function()
             end
         end
     end
-    -- Radio Логика
     if getgenv().Config.RadioBypass then
         for _, v in ipairs(Workspace:GetDescendants()) do
             if v:IsA("Sound") and (v.Name == "Radio" or v.Name == "Audio") then v.Volume = 2 v.Muted = false end
@@ -159,37 +212,117 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Потоковые циклы (Фарм Монет и Опыта)
+local currentTween = nil
 task.spawn(function()
-    while task.wait(0.1) do
+    while task.wait(0.2) do
         if getgenv().Config.CoinFarm and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local root = LocalPlayer.Character.HumanoidRootPart
             local c = Workspace:FindFirstChild("CoinContainer", true) or Workspace:FindFirstChild("Normal", true)
             if c then
                 for _, coin in ipairs(c:GetDescendants()) do
                     if coin:IsA("TouchTransmitter") and coin.Parent then
-                        LocalPlayer.Character.HumanoidRootPart.CFrame = coin.Parent.CFrame * CFrame.new(0, -4.5, 0)
-                        task.wait(0.1)
-                        firetouchinterest(LocalPlayer.Character.HumanoidRootPart, coin.Parent, 0)
-                        firetouchinterest(LocalPlayer.Character.HumanoidRootPart, coin.Parent, 1)
-                        task.wait(math.random(0,1))
+                        local coinPart = coin.Parent
+                        local targetCFrame = coinPart.CFrame * CFrame.new(0, -4.5, 0)
+                        local distance = (root.Position - targetCFrame.Position).Magnitude
+                        local speed = 25
+                        local duration = distance / speed
+                        
+                        local info = TweenInfo.new(duration, Enum.EasingStyle.Linear)
+                        currentTween = TweenService:Create(root, info, {CFrame = targetCFrame})
+                        currentTween:Play()
+                        currentTween.Completed:Wait()
+                        
+                        firetouchinterest(root, coinPart, 0)
+                        firetouchinterest(root, coinPart, 1)
+                        task.wait(math.random(0, 1))
                         break
                     end
                 end
             end
-        elseif getgenv().Config.XPFarm and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(0, 7000, 0)
-            if LocalPlayer.Character:FindFirstChild("Humanoid") then LocalPlayer.Character.Humanoid.PlatformStand = true end
+elseif getgenv().Config.XPFarm
+    and LocalPlayer.Character
+    and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+
+    LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(0, 7500, 0)
+
+    if LocalPlayer.Character:FindFirstChild("Humanoid") then
+        LocalPlayer.Character.Humanoid.PlatformStand = true
+    end
+
+elseif currentTween then
+    currentTween:Cancel()
+end
+
+end
+end
+end)
+
+task.spawn(function()
+    while task.wait() do
+        if getgenv().Config.FlingAura
+            and LocalPlayer.Character
+            and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+
+            local root = LocalPlayer.Character.HumanoidRootPart
+
+            local bam = Instance.new("BodyAngularVelocity")
+            bam.Name = "FlingForce"
+            bam.AngularVelocity = Vector3.new(0, 99999, 0)
+            bam.MaxTorque = Vector3.new(0, 99999, 0)
+            bam.Parent = root
+
+            for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = true
+                end
+            end
+
+            task.wait(0.1)
+
+            if root:FindFirstChild("FlingForce") then
+                root.FlingForce:Destroy()
+            end
         end
     end
 end)
 
--- Silent Aim (Шериф)
+RunService.RenderStepped:Connect(function()
+    local drop =
+        Workspace:FindFirstChild("GunDrop")
+        or Workspace:FindFirstChild("DroppedGun", true)
+
+    if drop
+        and drop:IsA("BasePart")
+        and getgenv().Config.GunTP
+        and LocalPlayer.Character
+        and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+
+        getgenv().Config.GunTP = false
+
+        local oldPos = LocalPlayer.Character.HumanoidRootPart.CFrame
+
+        LocalPlayer.Character.HumanoidRootPart.CFrame = drop.CFrame
+
+        task.wait(0.2)
+
+        LocalPlayer.Character.HumanoidRootPart.CFrame = oldPos
+    end
+end)
+
 local OldNamecall
+
 OldNamecall = hookmetamethod(game, "__namecall", function(Self, ...)
     local Args = {...}
-    if getnamecallmethod() == "FireServer" and Self.Name == "ShootGun" and getgenv().Config.SilentAim and Roles.Murderer and Roles.Murderer.Character then
-        Args[1] = Roles.Murderer.Character.Head.Position
+
+    if getnamecallmethod() == "FireServer"
+        and Self.Name == "ShootGun"
+        and getgenv().Config.SilentAim
+        and Roles.Murderer
+        and Roles.Murderer.Character then
+
+        Args = Roles.Murderer.Character.Head.Position
         return Self.FireServer(Self, unpack(Args))
     end
+
     return OldNamecall(Self, ...)
 end)
